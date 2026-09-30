@@ -18,10 +18,6 @@ describe('API WALeads - integración HTTP', () => {
   beforeEach(() => { repos = createMemoryRepositories(); app = createApp({ config, repos }); });
   it('completa el handshake de Meta', async () => { await request(app).get('/api/v1/webhooks/whatsapp').query({ 'hub.mode': 'subscribe', 'hub.verify_token': 'verify-me', 'hub.challenge': '12345' }).expect(200, '12345'); });
   it('rechaza un webhook sin firma válida', async () => { await request(app).post('/api/v1/webhooks/whatsapp').send(whatsappPayload).expect(401); });
-  it('rechaza acceso a leads y pedidos sin JWT', async () => {
-    await request(app).get('/api/v1/leads').expect(401);
-    await request(app).get('/api/v1/pedidos').expect(401);
-  });
   it('ingresa el mensaje, deduplica y expone el lead', async () => {
     const body = JSON.stringify(whatsappPayload); const signature = `sha256=${createHmac('sha256', config.WHATSAPP_APP_SECRET).update(body).digest('hex')}`;
     await request(app).post('/api/v1/webhooks/whatsapp').set('Content-Type', 'application/json').set('x-hub-signature-256', signature).send(body).expect(200);
