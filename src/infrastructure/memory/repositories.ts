@@ -8,12 +8,19 @@ export function createMemoryRepositories(): Repositories {
     leads: {
       async findByPhone(phone) { return leads.find(l => l.telefono === phone) ?? null; },
       async findById(id) { return leads.find(l => l.id === id) ?? null; },
-      async create(input) { const now = new Date(); const lead = { id: randomUUID(), ...input, createdAt: now, updatedAt: now }; leads.push(lead); return lead; },
+      async create(input) {
+        const existing = leads.find(l => l.telefono === input.telefono);
+        if (existing) return existing;
+        const now = new Date(); const lead = { id: randomUUID(), ...input, createdAt: now, updatedAt: now }; leads.push(lead); return lead;
+      },
       async list({ page, limit, search }) { const q = search?.toLowerCase(); const filtered = q ? leads.filter(l => l.telefono.includes(q) || l.nombreWA.toLowerCase().includes(q)) : leads; return { data: filtered.slice((page - 1) * limit, page * limit), total: filtered.length }; }
     },
     messages: {
       async existsByWaId(id) { return messages.some(m => m.waMessageId === id); },
-      async create(input) { const message = { id: randomUUID(), ...input, createdAt: new Date() }; messages.push(message); return message; }
+      async create(input) {
+        if (messages.some(m => m.waMessageId === input.waMessageId)) return null;
+        const message = { id: randomUUID(), ...input, createdAt: new Date() }; messages.push(message); return message;
+      }
     },
     orders: {
       async create(input) { const now = new Date(); const order: Order = { id: randomUUID(), pedidoId: `PED-${now.getUTCFullYear()}-${String(orders.length + 1).padStart(4, '0')}`, ...input, createdAt: now, updatedAt: now }; orders.push(order); return order; },
