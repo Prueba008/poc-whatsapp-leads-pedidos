@@ -11,10 +11,10 @@ export class WhatsAppService {
     if (await this.repos.messages.existsByWaId(message.waMessageId)) return 'DUPLICATE';
     const lead = await this.repos.leads.findByPhone(message.telefono)
       ?? await this.repos.leads.create({ telefono: message.telefono, nombreWA: message.nombreWA });
-    await this.repos.messages.create({
+    const created = await this.repos.messages.create({
       waMessageId: message.waMessageId, leadId: lead.id, direccion: 'ENTRANTE', tipo: message.tipo,
       contenido: message.contenido, timestampWA: new Date(message.timestamp * 1000)
     });
-    return 'CREATED';
+    return created ? 'CREATED' : 'DUPLICATE';
   }
 }

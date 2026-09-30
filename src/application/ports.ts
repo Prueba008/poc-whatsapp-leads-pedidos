@@ -8,7 +8,8 @@ export interface LeadRepository {
 }
 export interface MessageRepository {
   existsByWaId(waMessageId: string): Promise<boolean>;
-  create(input: Omit<Message, 'id' | 'createdAt'>): Promise<Message>;
+  /** Returns null when another request already stored this WhatsApp message. */
+  create(input: Omit<Message, 'id' | 'createdAt'>): Promise<Message | null>;
 }
 export interface OrderRepository {
   create(input: Omit<Order, 'id' | 'pedidoId' | 'createdAt' | 'updatedAt'>): Promise<Order>;

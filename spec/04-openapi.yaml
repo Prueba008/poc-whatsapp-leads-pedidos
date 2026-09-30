@@ -20,21 +20,32 @@ paths:
   /api/v1/leads:
     get:
       summary: Listar leads
+      security: [{ bearerAuth: [] }]
       parameters: [{ in: query, name: search, schema: { type: string } }, { in: query, name: page, schema: { type: integer, minimum: 1 } }, { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 100 } }]
-      responses: { '200': { description: Lista paginada } }
+      responses: { '200': { description: Lista paginada }, '401': { description: JWT ausente o inválido } }
   /api/v1/pedidos:
-    get: { summary: Listar pedidos, responses: { '200': { description: Lista paginada } } }
+    get:
+      summary: Listar pedidos
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Lista paginada }, '401': { description: JWT ausente o inválido } }
     post:
       summary: Crear pedido
+      security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/NewOrder' } } } }
-      responses: { '201': { description: Creado }, '404': { description: Lead inexistente } }
+      responses: { '201': { description: Creado }, '401': { description: JWT ausente o inválido }, '404': { description: Lead inexistente } }
   /api/v1/pedidos/{id}/estado:
     patch:
       summary: Cambiar estado
+      security: [{ bearerAuth: [] }]
       parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [estado], properties: { estado: { $ref: '#/components/schemas/OrderState' } } } } } }
-      responses: { '200': { description: Actualizado }, '409': { description: Transición inválida } }
+      responses: { '200': { description: Actualizado }, '401': { description: JWT ausente o inválido }, '409': { description: Transición inválida } }
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     OrderState: { type: string, enum: [PENDIENTE, EN_PREPARACION, DESPACHADO, ENTREGADO, CANCELADO] }
     NewOrder:

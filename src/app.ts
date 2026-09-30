@@ -9,6 +9,7 @@ import { DomainError } from './domain/errors.js';
 import { ORDER_STATES } from './domain/entities.js';
 import { verifyWhatsAppSignature } from './http/signature.js';
 import { extractMessages } from './http/whatsapp-payload.js';
+import { requireJwt } from './http/auth.js';
 
 const paging = z.object({ page: z.coerce.number().int().positive().default(1), limit: z.coerce.number().int().min(1).max(100).default(20) });
 const orderInput = z.object({ leadId: z.string().min(1), items: z.array(z.object({ productoId: z.string().min(1), descripcion: z.string().min(1), cantidad: z.number().int().positive(), precioUnitario: z.number().nonnegative() })).min(1), direccionEntrega: z.string().min(1), moneda: z.enum(['ARS', 'USD']).default('ARS') });
@@ -31,6 +32,8 @@ export function createApp({ config, repos }: { config: Config; repos: Repositori
       return res.status(200).json({ status: 'EVENT_RECEIVED', messages: messages.length });
     } catch (error) { return next(error); }
   });
+  app.use('/api/v1/leads', requireJwt(config.JWT_SECRET));
+  app.use('/api/v1/pedidos', requireJwt(config.JWT_SECRET));
   app.get('/api/v1/leads', async (req, res, next) => { try { const q = paging.extend({ search: z.string().optional() }).parse(req.query); const result = await repos.leads.list(q); res.json({ data: result.data, meta: { total: result.total, page: q.page, limit: q.limit } }); } catch (e) { next(e); } });
   app.get('/api/v1/pedidos', async (req, res, next) => { try { const q = paging.extend({ estado: z.enum(ORDER_STATES).optional(), leadId: z.string().optional() }).parse(req.query); const result = await repos.orders.list(q); res.json({ data: result.data, meta: { total: result.total, page: q.page, limit: q.limit } }); } catch (e) { next(e); } });
   app.post('/api/v1/pedidos', async (req, res, next) => { try { res.status(201).json(await orders.create(orderInput.parse(req.body))); } catch (e) { next(e); } });
