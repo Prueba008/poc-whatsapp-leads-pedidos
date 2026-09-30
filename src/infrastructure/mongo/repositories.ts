@@ -33,8 +33,13 @@ export function createMongoRepositories(): Repositories {
       async create(input) {
         const year = new Date().getUTCFullYear();
         const sequenceId = `order-${year}`;
-        const existingCount = await OrderModel.countDocuments({ pedidoId: { $regex: `^PED-${year}-` } });
-        const update = [{ $set: { seq: { $add: [{ $ifNull: ['$seq', existingCount] }, 1] } } }];
+        const [latest] = await OrderModel.aggregate<{ max: number }>([
+          { $match: { pedidoId: { $regex: `^PED-${year}-` } } },
+          { $project: { sequence: { $convert: { input: { $arrayElemAt: [{ $split: ['$pedidoId', '-'] }, 2] }, to: 'int', onError: 0, onNull: 0 } } },
+          { $group: { _id: null, max: { $max: '$sequence' } } }
+        ]);
+        const existingMax = latest?.max ?? 0;
+        const update = [{ $set: { seq: { $add: [{ $ifNull: ['$seq', existingMax] }, 1] } } }];
         let counter;
         try {
           counter = await CounterModel.findOneAndUpdate({ _id: sequenceId }, update, { new: true, upsert: true });
