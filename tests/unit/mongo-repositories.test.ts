@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const models = vi.hoisted(() => ({
   LeadModel: { findOne: vi.fn(), findById: vi.fn(), create: vi.fn(), find: vi.fn(), countDocuments: vi.fn() },
   MessageModel: { exists: vi.fn(), create: vi.fn() },
-  OrderModel: { countDocuments: vi.fn(), create: vi.fn(), findById: vi.fn(), findByIdAndUpdate: vi.fn(), find: vi.fn() },
+  OrderModel: { aggregate: vi.fn(), countDocuments: vi.fn(), create: vi.fn(), findById: vi.fn(), findByIdAndUpdate: vi.fn(), find: vi.fn() },
   CounterModel: { findOneAndUpdate: vi.fn() },
   mapDoc: vi.fn((doc: Record<string, unknown>) => doc)
 }));
@@ -54,7 +54,8 @@ describe('repositorios Mongo', () => {
 
   it('crea, encuentra, actualiza y filtra pedidos', async () => {
     const doc = { id: 'order-1' }; const query = queryResult([doc]);
-    models.OrderModel.countDocuments.mockResolvedValueOnce(0).mockResolvedValueOnce(1);
+    models.OrderModel.aggregate.mockResolvedValue([{ max: 0 }]);
+    models.OrderModel.countDocuments.mockResolvedValue(1);
     models.CounterModel.findOneAndUpdate.mockResolvedValue({ seq: 1 });
     models.OrderModel.create.mockResolvedValue(doc);
     models.OrderModel.findById.mockResolvedValue(doc);
@@ -65,12 +66,13 @@ describe('repositorios Mongo', () => {
     const input = { leadId: 'lead-1', estado: 'PENDIENTE' as const, items: [], montoTotal: 0, moneda: 'ARS' as const, direccionEntrega: 'Calle 1' };
 
     await expect(repos.orders.create(input)).resolves.toBe(doc);
-    expect(models.OrderModel.create).toHaveBeenCalledWith(expect.objectContaining({ pedidoId: expect.stringMatching(/^PED-\d{4}-0001$/) }));
+    expect(models.OrderModel.aggregate).toHaveBeenCalledOnce();
     expect(models.CounterModel.findOneAndUpdate).toHaveBeenCalledWith(
       { _id: expect.stringMatching(/^order-\d{4}$/) },
       [{ $set: { seq: { $add: [{ $ifNull: ['$seq', 0] }, 1] } } }],
       { new: true, upsert: true }
     );
+    expect(models.OrderModel.create).toHaveBeenCalledWith(expect.objectContaining({ pedidoId: expect.stringMatching(/^PED-\d{4}-0001$/) }));
     await expect(repos.orders.findById('order-1')).resolves.toBe(doc);
     await expect(repos.orders.updateState('order-1', 'CANCELADO')).resolves.toBe(doc);
     expect(models.OrderModel.findByIdAndUpdate).toHaveBeenCalledWith('order-1', { estado: 'CANCELADO' }, { new: true, runValidators: true });
