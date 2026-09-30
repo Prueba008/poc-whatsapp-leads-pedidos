@@ -50,8 +50,6 @@ En ese caso, use `REPOSITORY_MODE=mongo`. No instale TypeScript ni ESLint global
 
 ## Configuración
 
-Las variables principales son:
-
 | Variable | Descripción | Valor predeterminado |
 |---|---|---|
 | `PORT` | Puerto HTTP | `3000` |
@@ -60,9 +58,16 @@ Las variables principales son:
 | `REPOSITORY_MODE` | Persistencia: `memory` o `mongo` | `mongo` |
 | `WHATSAPP_VERIFY_TOKEN` | Token usado en el handshake de Meta | Obligatorio |
 | `WHATSAPP_APP_SECRET` | Secreto usado para verificar firmas HMAC | Obligatorio |
+| `JWT_SECRET` | Secreto HS256 para validar tokens de la API (mínimo 32 caracteres) | Obligatorio |
 | `LOG_LEVEL` | Nivel de logging | `info` |
 
 No exponga tokens ni secretos en el repositorio.
+
+## Autenticación de la API
+
+Los endpoints de leads y pedidos requieren `Authorization: Bearer <JWT>`. La API valida tokens HS256 firmados con `JWT_SECRET` y exige un claim `exp` vigente; también respeta `nbf` cuando está presente. La aplicación no emite tokens: deben provenir de un emisor de confianza configurado para usar el mismo secreto.
+
+El health check y los endpoints de webhook de WhatsApp quedan fuera de esta autenticación. El webhook POST sigue validando la firma HMAC de Meta sobre el cuerpo HTTP original.
 
 ## Endpoints
 
@@ -71,10 +76,10 @@ No exponga tokens ni secretos en el repositorio.
 | `GET` | `/health` | Comprueba el estado del servicio |
 | `GET` | `/api/v1/webhooks/whatsapp` | Completa el handshake de Meta |
 | `POST` | `/api/v1/webhooks/whatsapp` | Recibe y procesa mensajes firmados |
-| `GET` | `/api/v1/leads` | Lista y busca leads |
-| `GET` | `/api/v1/pedidos` | Lista y filtra pedidos |
-| `POST` | `/api/v1/pedidos` | Crea un pedido |
-| `PATCH` | `/api/v1/pedidos/:id/estado` | Cambia el estado de un pedido |
+| `GET` | `/api/v1/leads` | Lista y busca leads (JWT requerido) |
+| `GET` | `/api/v1/pedidos` | Lista y filtra pedidos (JWT requerido) |
+| `POST` | `/api/v1/pedidos` | Crea un pedido (JWT requerido) |
+| `PATCH` | `/api/v1/pedidos/:id/estado` | Cambia el estado de un pedido (JWT requerido) |
 
 El contrato completo se encuentra en [`spec/04-openapi.yaml`](spec/04-openapi.yaml).
 
@@ -104,7 +109,8 @@ src/
 │   ├── errors.ts                  errores del dominio
 │   └── order-state.ts             transiciones permitidas
 ├── http/
-│   ├── signature.ts               validación HMAC
+│   ├── auth.ts                    validación de JWT HS256
+│   ├── signature.ts               validación HMAC del webhook
 │   └── whatsapp-payload.ts        normalización del payload de Meta
 └── infrastructure/
     ├── memory/repositories.ts     persistencia en memoria
@@ -122,12 +128,12 @@ Meta envía el webhook
   → Express conserva el cuerpo original
   → se verifica la firma HMAC
   → se normalizan los mensajes
-  → se deduplica por waMessageId
+  → se deduplica atómicamente por waMessageId
   → se encuentra o crea el lead
   → se almacena el mensaje
 ```
 
-La deduplicación es necesaria porque Meta puede reintentar un evento. El índice único de `waMessageId` agrega protección en MongoDB.
+La deduplicación es necesaria porque Meta puede reintentar un evento. El índice único de `waMessageId` junto con el manejo de clave duplicada evita que reintentos concurrentes se conviertan en errores HTTP.
 
 ### Estados de pedidos
 
@@ -160,8 +166,6 @@ La suite incluye pruebas de:
 - Repositorios Mongoose con modelos simulados.
 - Integración HTTP con Express y Supertest.
 
-Estado verificado de la suite: **33 pruebas aprobadas**, con **92,94 % de cobertura de líneas**, **88 % de ramas** y **97,56 % de funciones**.
-
 Las pruebas unitarias están en [`tests/unit`](tests/unit) y las pruebas HTTP en [`tests/integration`](tests/integration).
 
 ## Aspectos importantes
@@ -170,10 +174,7 @@ Las pruebas unitarias están en [`tests/unit`](tests/unit) y las pruebas HTTP en
 - Un webhook puede repetirse o llegar fuera de orden; su procesamiento debe ser idempotente.
 - Las reglas de transición pertenecen al dominio, no a Express ni a MongoDB.
 - El repositorio en memoria pierde sus datos al reiniciar.
-- `countDocuments() + 1` no genera identificadores seguros bajo concurrencia: dos solicitudes pueden obtener el mismo número.
-- Los índices únicos deben complementarse con manejo explícito de errores de clave duplicada.
-
-Para producción, la generación de `pedidoId` debería reemplazarse por un contador atómico con `$inc`, un UUID/ULID o una secuencia transaccional.
+- Los números de pedido se asignan mediante un contador atómico por año en MongoDB para evitar colisiones entre solicitudes concurrentes.
 
 ## Ruta de aprendizaje sugerida
 
