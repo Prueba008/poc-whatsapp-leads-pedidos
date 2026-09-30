@@ -2,12 +2,18 @@
 
 ## Unitarias
 
-- Validación de la firma HMAC.
+- Validación de firma HMAC.
+- Validación JWT: firma correcta, firma incorrecta, token vencido y `nbf` futuro.
 - Transiciones válidas e inválidas del pedido.
 - Autocreación del lead e idempotencia de mensajes.
+- Adaptadores Mongo: conflicto de `waMessageId`, carrera al crear un lead y reserva de secuencia de pedidos.
 
-## Integración
+## Integración HTTP
 
-`tests/integration/api.test.ts` levanta Express en proceso mediante Supertest e integra rutas, middleware, casos de uso y repositorios en memoria. Cubre handshake, rechazo de firmas, flujo webhook → lead, deduplicación y flujo de pedidos.
+`tests/integration/api.test.ts` usa Supertest con repositorios en memoria. Debe cubrir handshake, rechazo de firmas, flujo webhook → lead, reentrega de webhook, rechazo de rutas protegidas sin JWT y operaciones correctas con JWT válido.
 
-MongoDB real se usa en ejecución local con Docker Compose; los adaptadores comparten los contratos ejercitados por los casos de uso.
+## Persistencia MongoDB
+
+Con MongoDB disponible, validar escrituras concurrentes del mismo `waMessageId`, de mensajes para un mismo teléfono nuevo y de pedidos. Confirmar que cada webhook se responde de forma idempotente, que queda un único lead/mensaje y que los `pedidoId` son únicos y secuenciales a partir de los datos existentes del año.
+
+La suite simulada no sustituye una prueba de concurrencia contra MongoDB real. MongoDB real puede levantarse localmente con Docker Compose.
